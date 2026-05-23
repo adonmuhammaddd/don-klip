@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +9,7 @@ from app.db.models.enums import ClipStatus, JobStatus
 from app.db.models.job import Job
 from app.db.models.transcript import Transcript
 from app.db.session import SessionLocal
+from app.schemas.detection import AudioSpikeStrategy, DetectionConfigDTO
 from app.services.detection.audio_spike import AudioSpikeDetector
 from app.services.detection.base import DetectedMoment, DetectionContext
 from app.services.errors import JobCancelledError
@@ -71,9 +71,7 @@ async def _run_stages(
 
     # Stage 6: detect (Sprint 2: audio spike saja; aggregator multi-strategy di Sprint 4)
     await tracker.update(70, "Mendeteksi momen menarik...", JobStatus.detecting)
-    moments = await _run_audio_spike(
-        job, source_path, audio_path, probe.duration_seconds, transcript, settings
-    )
+    moments = await _run_detectors(job, source_path, audio_path, probe.duration_seconds, transcript)
 
     # Stage 7: simpan kandidat (cap MAX_CANDIDATES_PER_JOB)
     await tracker.update(90, "Menyimpan kandidat klip...")
@@ -85,16 +83,14 @@ async def _run_stages(
     await tracker.update(100, "Siap direview", JobStatus.ready_for_review)
 
 
-async def _run_audio_spike(
+async def _run_detectors(
     job: Job,
     source_path: Path,
     audio_path: Path,
     duration: float,
     transcript: TranscriptResult,
-    settings: Settings,
 ) -> list[DetectedMoment]:
-    cfg: dict[str, Any] = job.detection_config.get("audio_spike") or {}
-    std = float(cfg.get("std_multiplier", settings.audio_spike_std_multiplier))
+    config = DetectionConfigDTO.model_validate(job.detection_config)
     ctx = DetectionContext(
         video_path=source_path,
         audio_path=audio_path,
@@ -102,7 +98,13 @@ async def _run_audio_spike(
         transcript=transcript,
         config=job.detection_config,
     )
-    return await AudioSpikeDetector(std_multiplier=std).detect(ctx)
+    moments: list[DetectedMoment] = []
+    for strategy in config.strategies:
+        # Sprint 2: hanya audio_spike. llm_transcript/twitch_chat/manual menyusul di Sprint 4.
+        if isinstance(strategy, AudioSpikeStrategy):
+            detector = AudioSpikeDetector(std_multiplier=strategy.std_multiplier)
+            moments.extend(await detector.detect(ctx))
+    return moments
 
 
 async def _save_transcript(session: AsyncSession, job: Job, result: TranscriptResult) -> None:

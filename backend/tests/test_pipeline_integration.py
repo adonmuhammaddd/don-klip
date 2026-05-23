@@ -72,7 +72,7 @@ async def test_run_pipeline_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
         job = Job(
             source_type=SourceType.upload,
             original_filename="clip.mp4",
-            detection_config={},
+            detection_config={"strategies": [{"strategy": "audio_spike", "std_multiplier": 2.0}]},
             status=JobStatus.pending,
         )
         session.add(job)
