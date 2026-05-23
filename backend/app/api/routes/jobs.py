@@ -26,7 +26,9 @@ def _parse_detection_config(raw: Any) -> DetectionConfigDTO:
             return DetectionConfigDTO.model_validate_json(raw)
         return DetectionConfigDTO.model_validate(raw)
     except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=f"detection_config tidak valid: {exc.errors()}") from exc
+        raise HTTPException(
+            status_code=422, detail=f"detection_config tidak valid: {exc.errors()}"
+        ) from exc
 
 
 def _save_upload(src: BinaryIO, dest: Path) -> None:

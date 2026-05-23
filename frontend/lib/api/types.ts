@@ -55,3 +55,47 @@ export interface JobListResponse {
   page: number;
   page_size: number;
 }
+
+export type ClipStatus =
+  | "pending"
+  | "selected"
+  | "rejected"
+  | "exporting"
+  | "exported"
+  | "failed";
+
+export interface ClipRead {
+  id: string;
+  job_id: string;
+  start_seconds: number;
+  end_seconds: number;
+  user_start_seconds: number | null;
+  user_end_seconds: number | null;
+  detection_strategy: DetectionStrategyName;
+  score: number;
+  reason: string;
+  transcript_excerpt: string | null;
+  status: ClipStatus;
+  exported_paths: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClipUpdate {
+  user_start_seconds?: number;
+  user_end_seconds?: number;
+  status?: ClipStatus;
+}
+
+export interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+  confidence: number | null;
+}
+
+export interface TranscriptRead {
+  job_id: string;
+  language: string;
+  segments: TranscriptSegment[];
+}

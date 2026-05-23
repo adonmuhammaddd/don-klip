@@ -1,4 +1,11 @@
-import type { DetectionConfig, JobListResponse, JobRead } from "./types";
+import type {
+  ClipRead,
+  ClipUpdate,
+  DetectionConfig,
+  JobListResponse,
+  JobRead,
+  TranscriptRead,
+} from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -44,4 +51,27 @@ export async function deleteJob(id: string): Promise<void> {
   if (!res.ok) {
     throw new Error(`API ${res.status}`);
   }
+}
+
+export async function listClips(jobId: string): Promise<ClipRead[]> {
+  const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips`, { cache: "no-store" });
+  return handle<ClipRead[]>(res);
+}
+
+export async function updateClip(id: string, payload: ClipUpdate): Promise<ClipRead> {
+  const res = await fetch(`${API_URL}/api/clips/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handle<ClipRead>(res);
+}
+
+export async function getTranscript(jobId: string): Promise<TranscriptRead> {
+  const res = await fetch(`${API_URL}/api/jobs/${jobId}/transcript`, { cache: "no-store" });
+  return handle<TranscriptRead>(res);
+}
+
+export function sourcePreviewUrl(clipId: string): string {
+  return `${API_URL}/api/clips/${clipId}/preview`;
 }

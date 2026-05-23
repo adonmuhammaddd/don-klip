@@ -1,5 +1,6 @@
 "use client";
 
+import { ClipList } from "@/components/clip/clip-list";
 import { Badge } from "@/components/ui/badge";
 import { useJob } from "@/lib/hooks/use-jobs";
 import { statusLabel, statusVariant } from "@/lib/status";
@@ -37,11 +38,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
         <p className="text-destructive text-sm">{job.error_message}</p>
       ) : null}
 
-      {job.status === "ready_for_review" ? (
-        <p className="text-muted-foreground text-sm">
-          Deteksi selesai. Review &amp; trim klip akan tersedia di Sprint 3.
-        </p>
-      ) : null}
+      {job.status === "ready_for_review" ? <ClipList jobId={jobId} /> : null}
     </div>
   );
 }
