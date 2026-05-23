@@ -12,9 +12,36 @@ import pytest
 from httpx import ASGITransport
 
 from app.api.routes import jobs as jobs_route
+from app.db.models.enums import JobStatus, SourceType
+from app.db.models.job import Job
+from app.db.session import SessionLocal
 from app.main import app
 
 pytestmark = pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="butuh DATABASE_URL")
+
+_CONFIG = {"strategies": [{"strategy": "audio_spike"}]}
+
+
+async def _make_job(status: JobStatus) -> UUID:
+    async with SessionLocal() as session:
+        job = Job(
+            source_type=SourceType.upload,
+            original_filename="x.mp4",
+            detection_config=_CONFIG,
+            status=status,
+        )
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        return job.id
+
+
+async def _delete_job(job_id: UUID) -> None:
+    async with SessionLocal() as session:
+        job = await session.get(Job, job_id)
+        if job is not None:
+            await session.delete(job)
+            await session.commit()
 
 
 @pytest.fixture
@@ -75,3 +102,47 @@ async def test_missing_source_url_returns_422(_noop_run_job: None) -> None:
             json={"detection_config": {"strategies": [{"strategy": "audio_spike"}]}},
         )
         assert resp.status_code == 422
+
+
+async def test_cancel_in_progress_job() -> None:
+    job_id = await _make_job(JobStatus.downloading)
+    try:
+        async with _client() as client:
+            resp = await client.post(f"/api/jobs/{job_id}/cancel")
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "cancelled"
+    finally:
+        await _delete_job(job_id)
+
+
+async def test_cancel_ready_job_conflict() -> None:
+    job_id = await _make_job(JobStatus.ready_for_review)
+    try:
+        async with _client() as client:
+            resp = await client.post(f"/api/jobs/{job_id}/cancel")
+            assert resp.status_code == 409
+    finally:
+        await _delete_job(job_id)
+
+
+async def test_retry_failed_job(_noop_run_job: None) -> None:
+    job_id = await _make_job(JobStatus.failed)
+    try:
+        async with _client() as client:
+            resp = await client.post(f"/api/jobs/{job_id}/retry")
+            assert resp.status_code == 202
+            body = resp.json()
+            assert body["status"] == "pending"
+            assert body["progress_pct"] == 0
+    finally:
+        await _delete_job(job_id)
+
+
+async def test_retry_ready_job_conflict(_noop_run_job: None) -> None:
+    job_id = await _make_job(JobStatus.ready_for_review)
+    try:
+        async with _client() as client:
+            resp = await client.post(f"/api/jobs/{job_id}/retry")
+            assert resp.status_code == 409
+    finally:
+        await _delete_job(job_id)
