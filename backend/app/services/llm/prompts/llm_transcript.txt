@@ -1,0 +1,12 @@
+Kamu menganalisis transcript sebuah video panjang (stream gaming / podcast) untuk menemukan momen menarik yang layak dijadikan klip pendek.
+
+Berikut potongan transcript dengan timestamp dalam DETIK (absolut, relatif ke awal video):
+
+{transcript}
+
+Temukan momen yang paling menarik untuk diklip: quote bagus, punchline lucu, momen emosional, insight tajam, atau momen hype. Untuk setiap momen kembalikan:
+- start_sec dan end_sec: gunakan nilai timestamp absolut dari transcript di atas (dalam detik).
+- reason: alasan singkat kenapa menarik (bahasa Indonesia, satu kalimat).
+- score: angka 0..1 seberapa menarik momennya.
+
+Pilih hanya momen yang benar-benar menonjol (maksimal beberapa per potongan). Kembalikan array kosong jika tidak ada yang layak.

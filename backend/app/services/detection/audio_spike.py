@@ -7,9 +7,13 @@ import numpy as np
 import numpy.typing as npt
 
 from app.db.models.enums import DetectionStrategy
-from app.services.detection.base import DetectedMoment, DetectionContext, MomentDetector
+from app.services.detection.base import (
+    DetectedMoment,
+    DetectionContext,
+    MomentDetector,
+    excerpt_for_range,
+)
 from app.services.errors import DetectionError
-from app.services.transcription.base import TranscriptResult
 
 WINDOW_SEC = 0.5
 MERGE_GAP_SEC = 3.0
@@ -67,7 +71,7 @@ class AudioSpikeDetector(MomentDetector):
                     score=score,
                     reason=reason,
                     strategy=self.strategy,
-                    transcript_excerpt=self._excerpt(ctx.transcript, start, end),
+                    transcript_excerpt=excerpt_for_range(ctx.transcript, start, end),
                 )
             )
         return moments
@@ -119,15 +123,3 @@ class AudioSpikeDetector(MomentDetector):
             prev = idx
         groups.append((start, prev))
         return groups
-
-    @staticmethod
-    def _excerpt(transcript: TranscriptResult | None, start: float, end: float) -> str | None:
-        if transcript is None:
-            return None
-        texts = [
-            seg.text
-            for seg in transcript.segments
-            if seg.end > start and seg.start < end and seg.text
-        ]
-        joined = " ".join(texts).strip()
-        return joined or None

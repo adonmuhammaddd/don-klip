@@ -41,3 +41,18 @@ class MomentDetector(ABC):
 
     @abstractmethod
     async def detect(self, ctx: DetectionContext) -> list[DetectedMoment]: ...
+
+
+def excerpt_for_range(
+    transcript: TranscriptResult | None, start: float, end: float
+) -> str | None:
+    """Gabungkan teks transcript yang overlap dengan rentang [start, end]."""
+    if transcript is None:
+        return None
+    texts = [
+        seg.text
+        for seg in transcript.segments
+        if seg.end > start and seg.start < end and seg.text
+    ]
+    joined = " ".join(texts).strip()
+    return joined or None
