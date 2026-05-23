@@ -6,12 +6,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, UploadFile
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.api.deps import SessionDep
 from app.config import get_settings
+from app.db.models.clip import ClipCandidate
 from app.db.models.enums import JobStatus, SourceType
 from app.db.models.job import Job
+from app.db.models.transcript import Transcript
 from app.schemas.detection import DetectionConfigDTO
 from app.schemas.job import JobListItem, JobListResponse, JobRead
 from app.services.source.local_upload import ALLOWED_EXTENSIONS
@@ -145,3 +147,51 @@ async def delete_job(job_id: UUID, session: SessionDep) -> None:
     await session.commit()
     await asyncio.to_thread(_cleanup_dir, Path(settings.uploads_dir) / str(job_id))
     await asyncio.to_thread(_cleanup_dir, Path(settings.outputs_dir) / str(job_id))
+
+
+# Status yang masih bisa dibatalkan (pipeline belum selesai).
+_CANCELLABLE = {
+    JobStatus.pending,
+    JobStatus.downloading,
+    JobStatus.transcribing,
+    JobStatus.detecting,
+}
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=JobRead)
+async def cancel_job(job_id: UUID, session: SessionDep) -> JobRead:
+    job = await session.get(Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job tidak ditemukan")
+    if job.status not in _CANCELLABLE:
+        raise HTTPException(
+            status_code=409, detail=f"job tidak bisa dibatalkan (status: {job.status})"
+        )
+    # Pipeline (BackgroundTasks) cek status ini di awal tiap stage lalu berhenti (§9).
+    job.status = JobStatus.cancelled
+    job.progress_message = "Dibatalkan"
+    await session.commit()
+    await session.refresh(job)
+    return JobRead.from_model(job)
+
+
+@router.post("/jobs/{job_id}/retry", response_model=JobRead, status_code=202)
+async def retry_job(job_id: UUID, background: BackgroundTasks, session: SessionDep) -> JobRead:
+    job = await session.get(Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job tidak ditemukan")
+    if job.status not in {JobStatus.failed, JobStatus.cancelled}:
+        raise HTTPException(status_code=409, detail="hanya job failed/cancelled yang bisa di-retry")
+
+    # Bersihkan hasil parsial sebelum re-run (transcript unik per job).
+    await session.execute(delete(ClipCandidate).where(ClipCandidate.job_id == job_id))
+    await session.execute(delete(Transcript).where(Transcript.job_id == job_id))
+    job.status = JobStatus.pending
+    job.progress_pct = 0
+    job.progress_message = ""
+    job.error_message = None
+    await session.commit()
+    await session.refresh(job)
+
+    background.add_task(run_job, job.id)
+    return JobRead.from_model(job)

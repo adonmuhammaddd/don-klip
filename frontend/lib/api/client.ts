@@ -53,6 +53,16 @@ export async function deleteJob(id: string): Promise<void> {
   }
 }
 
+export async function cancelJob(id: string): Promise<JobRead> {
+  const res = await fetch(`${API_URL}/api/jobs/${id}/cancel`, { method: "POST" });
+  return handle<JobRead>(res);
+}
+
+export async function retryJob(id: string): Promise<JobRead> {
+  const res = await fetch(`${API_URL}/api/jobs/${id}/retry`, { method: "POST" });
+  return handle<JobRead>(res);
+}
+
 export async function listClips(jobId: string): Promise<ClipRead[]> {
   const res = await fetch(`${API_URL}/api/jobs/${jobId}/clips`, { cache: "no-store" });
   return handle<ClipRead[]>(res);

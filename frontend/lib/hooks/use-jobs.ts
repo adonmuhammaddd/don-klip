@@ -2,7 +2,15 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createUploadJob, createUrlJob, deleteJob, getJob, listJobs } from "@/lib/api/client";
+import {
+  cancelJob,
+  createUploadJob,
+  createUrlJob,
+  deleteJob,
+  getJob,
+  listJobs,
+  retryJob,
+} from "@/lib/api/client";
 import type { DetectionConfig } from "@/lib/api/types";
 import { TERMINAL_STATUSES } from "@/lib/status";
 
@@ -45,5 +53,21 @@ export function useDeleteJob() {
   return useMutation({
     mutationFn: (id: string) => deleteJob(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+}
+
+export function useCancelJob(jobId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => cancelJob(jobId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["job", jobId] }),
+  });
+}
+
+export function useRetryJob(jobId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => retryJob(jobId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["job", jobId] }),
   });
 }

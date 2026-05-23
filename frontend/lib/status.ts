@@ -7,6 +7,13 @@ export const TERMINAL_STATUSES: JobStatus[] = [
   "cancelled",
 ];
 
+export const IN_PROGRESS_STATUSES: JobStatus[] = [
+  "pending",
+  "downloading",
+  "transcribing",
+  "detecting",
+];
+
 const LABELS: Record<JobStatus, string> = {
   pending: "Menunggu",
   downloading: "Mengunduh",
