@@ -20,6 +20,8 @@ dependencies = [
     "numpy>=2.0",
     "google-genai>=1.0",
     "httpx>=0.28",
+    "anthropic>=0.40",
+    "openai>=1.50",
 ]
 
 [project.optional-dependencies]
