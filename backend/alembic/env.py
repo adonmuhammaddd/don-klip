@@ -8,9 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.config import get_settings
 from app.db.base import Base
-
-# Import models di sini supaya ke-register di Base.metadata untuk autogenerate.
-# (Ditambah pas step 3: from app.db import models  # noqa: F401)
+from app.db import models  # noqa: F401  # register semua model di Base.metadata
 
 config = context.config
 
