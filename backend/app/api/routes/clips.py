@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
@@ -12,6 +12,7 @@ from app.db.models.job import Job
 from app.db.models.transcript import Transcript
 from app.schemas.clip import ClipRead, ClipUpdate
 from app.schemas.transcript import TranscriptRead
+from app.services.export.runner import run_clip_export
 
 router = APIRouter(tags=["clips"])
 
@@ -71,3 +72,14 @@ async def preview_clip(clip_id: UUID, session: SessionDep) -> FileResponse:
         raise HTTPException(status_code=404, detail="file source tidak ditemukan")
     # FileResponse menangani Range request (206) secara otomatis.
     return FileResponse(path)
+
+
+@router.post("/clips/{clip_id}/export", response_model=ClipRead, status_code=202)
+async def export_clip_endpoint(
+    clip_id: UUID, background: BackgroundTasks, session: SessionDep
+) -> ClipRead:
+    clip = await session.get(ClipCandidate, clip_id)
+    if clip is None:
+        raise HTTPException(status_code=404, detail="clip tidak ditemukan")
+    background.add_task(run_clip_export, clip_id)
+    return ClipRead.from_model(clip)

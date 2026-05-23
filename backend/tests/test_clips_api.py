@@ -1,11 +1,15 @@
-"""API test untuk clip & transcript endpoints (DB asli, tanpa pipeline/ffmpeg)."""
+"""API test untuk clip, transcript, export & file endpoints (DB asli, tanpa ffmpeg)."""
 
 import os
+from pathlib import Path
+from uuid import UUID
 
 import httpx
 import pytest
 from httpx import ASGITransport
 
+from app.api.routes import clips as clips_route
+from app.config import get_settings
 from app.db.models.clip import ClipCandidate
 from app.db.models.enums import ClipStatus, DetectionStrategy, JobStatus, SourceType
 from app.db.models.job import Job
@@ -82,3 +86,56 @@ async def test_clip_list_patch_and_transcript() -> None:
         if job_row is not None:
             await session.delete(job_row)
             await session.commit()
+
+
+async def test_export_endpoint_returns_202(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _noop(clip_id: UUID) -> None:
+        return None
+
+    monkeypatch.setattr(clips_route, "run_clip_export", _noop)
+
+    async with SessionLocal() as session:
+        job = Job(
+            source_type=SourceType.upload,
+            original_filename="x.mp4",
+            detection_config={"strategies": [{"strategy": "audio_spike"}]},
+            status=JobStatus.ready_for_review,
+        )
+        session.add(job)
+        await session.flush()
+        clip = ClipCandidate(
+            job_id=job.id,
+            start_seconds=1.0,
+            end_seconds=5.0,
+            detection_strategy=DetectionStrategy.audio_spike,
+            score=0.8,
+            reason="x",
+            status=ClipStatus.selected,
+        )
+        session.add(clip)
+        await session.commit()
+        job_id, clip_id = job.id, clip.id
+
+    async with _client() as client:
+        resp = await client.post(f"/api/clips/{clip_id}/export")
+        assert resp.status_code == 202
+
+    async with SessionLocal() as session:
+        job_row = await session.get(Job, job_id)
+        if job_row is not None:
+            await session.delete(job_row)
+            await session.commit()
+
+
+async def test_serve_file_and_404() -> None:
+    base = Path(get_settings().outputs_dir)
+    (base / "demo").mkdir(parents=True, exist_ok=True)
+    (base / "demo" / "x.txt").write_text("halo", encoding="utf-8")
+
+    async with _client() as client:
+        ok = await client.get("/api/files/demo/x.txt")
+        assert ok.status_code == 200
+        assert ok.text == "halo"
+
+        missing = await client.get("/api/files/demo/missing.txt")
+        assert missing.status_code == 404

@@ -75,3 +75,12 @@ export async function getTranscript(jobId: string): Promise<TranscriptRead> {
 export function sourcePreviewUrl(clipId: string): string {
   return `${API_URL}/api/clips/${clipId}/preview`;
 }
+
+export async function exportClip(id: string): Promise<ClipRead> {
+  const res = await fetch(`${API_URL}/api/clips/${id}/export`, { method: "POST" });
+  return handle<ClipRead>(res);
+}
+
+export function fileUrl(relativePath: string): string {
+  return `${API_URL}/api/files/${relativePath}`;
+}
