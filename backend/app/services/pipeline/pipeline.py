@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from uuid import UUID
 
@@ -9,15 +10,31 @@ from app.db.models.enums import ClipStatus, JobStatus
 from app.db.models.job import Job
 from app.db.models.transcript import Transcript
 from app.db.session import SessionLocal
-from app.schemas.detection import AudioSpikeStrategy, DetectionConfigDTO
+from app.schemas.detection import (
+    AudioSpikeStrategy,
+    DetectionConfigDTO,
+    LlmTranscriptStrategy,
+    ManualMarkerStrategy,
+    TwitchChatStrategy,
+)
+from app.services.chat.base import ChatMessage
+from app.services.chat.twitch import TwitchChatFetcher
+from app.services.detection.aggregator import aggregate
 from app.services.detection.audio_spike import AudioSpikeDetector
-from app.services.detection.base import DetectedMoment, DetectionContext
-from app.services.errors import JobCancelledError
+from app.services.detection.base import DetectedMoment, DetectionContext, MomentDetector
+from app.services.detection.llm_transcript import LlmTranscriptDetector
+from app.services.detection.manual_marker import ManualMarkerDetector
+from app.services.detection.twitch_chat import ChatDensityDetector
+from app.services.errors import ChatError, JobCancelledError
 from app.services.ffmpeg.runner import FfmpegRunner
+from app.services.llm.factory import get_llm_provider
 from app.services.progress.tracker import ProgressTracker
+from app.services.source.base import AcquiredSource
 from app.services.source.factory import get_source_provider
 from app.services.transcription.base import TranscriptResult
 from app.services.transcription.whisper_cpp import get_transcriber
+
+logger = logging.getLogger(__name__)
 
 
 async def run_pipeline(job_id: UUID) -> None:
@@ -44,6 +61,7 @@ async def _run_stages(
 ) -> None:
     ffmpeg = FfmpegRunner()
     work_dir = Path(settings.uploads_dir) / str(job.id)
+    config = DetectionConfigDTO.model_validate(job.detection_config)
 
     # Stage 1: acquire source
     await tracker.update(5, "Mengambil sumber video...", JobStatus.downloading)
@@ -69,42 +87,62 @@ async def _run_stages(
     transcript = await get_transcriber(settings).transcribe(audio_path)
     await _save_transcript(session, job, transcript)
 
-    # Stage 6: detect (Sprint 2: audio spike saja; aggregator multi-strategy di Sprint 4)
-    await tracker.update(70, "Mendeteksi momen menarik...", JobStatus.detecting)
-    moments = await _run_detectors(job, source_path, audio_path, probe.duration_seconds, transcript)
+    # Stage 5: fetch chat Twitch (kalau strategy aktif & ini VOD Twitch)
+    chat_log = await _maybe_fetch_chat(tracker, config, acquired, settings)
 
-    # Stage 7: simpan kandidat (cap MAX_CANDIDATES_PER_JOB)
+    # Stage 6: detect (semua strategi aktif via aggregator)
+    await tracker.update(75, "Mendeteksi momen menarik...", JobStatus.detecting)
+    ctx = DetectionContext(
+        video_path=source_path,
+        audio_path=audio_path,
+        duration_seconds=probe.duration_seconds,
+        transcript=transcript,
+        chat_log=chat_log,
+        config=job.detection_config,
+    )
+    detectors = _build_detectors(config, settings)
+    moments = await aggregate(detectors, ctx, max_candidates=settings.max_candidates_per_job)
+
+    # Stage 7: simpan kandidat (sudah ter-merge, sort, & cap oleh aggregator)
     await tracker.update(90, "Menyimpan kandidat klip...")
-    top = sorted(moments, key=lambda m: m.score, reverse=True)[: settings.max_candidates_per_job]
-    _save_candidates(session, job, top)
+    _save_candidates(session, job, moments)
     await session.commit()
 
     # Stage 8: selesai
     await tracker.update(100, "Siap direview", JobStatus.ready_for_review)
 
 
-async def _run_detectors(
-    job: Job,
-    source_path: Path,
-    audio_path: Path,
-    duration: float,
-    transcript: TranscriptResult,
-) -> list[DetectedMoment]:
-    config = DetectionConfigDTO.model_validate(job.detection_config)
-    ctx = DetectionContext(
-        video_path=source_path,
-        audio_path=audio_path,
-        duration_seconds=duration,
-        transcript=transcript,
-        config=job.detection_config,
-    )
-    moments: list[DetectedMoment] = []
+async def _maybe_fetch_chat(
+    tracker: ProgressTracker,
+    config: DetectionConfigDTO,
+    acquired: AcquiredSource,
+    settings: Settings,
+) -> list[ChatMessage] | None:
+    wants_chat = any(isinstance(s, TwitchChatStrategy) for s in config.strategies)
+    if not wants_chat or not acquired.twitch_video_id:
+        return None
+    await tracker.update(60, "Mengambil chat Twitch...")
+    try:
+        return await TwitchChatFetcher(settings.twitch_client_id).fetch(acquired.twitch_video_id)
+    except ChatError as exc:
+        # Non-fatal: lanjut tanpa chat density.
+        logger.warning("fetch chat Twitch gagal: %s", exc)
+        return None
+
+
+def _build_detectors(config: DetectionConfigDTO, settings: Settings) -> list[MomentDetector]:
+    detectors: list[MomentDetector] = []
     for strategy in config.strategies:
-        # Sprint 2: hanya audio_spike. llm_transcript/twitch_chat/manual menyusul di Sprint 4.
-        if isinstance(strategy, AudioSpikeStrategy):
-            detector = AudioSpikeDetector(std_multiplier=strategy.std_multiplier)
-            moments.extend(await detector.detect(ctx))
-    return moments
+        match strategy:
+            case AudioSpikeStrategy():
+                detectors.append(AudioSpikeDetector(std_multiplier=strategy.std_multiplier))
+            case LlmTranscriptStrategy():
+                detectors.append(LlmTranscriptDetector(get_llm_provider(settings)))
+            case TwitchChatStrategy():
+                detectors.append(ChatDensityDetector())
+            case ManualMarkerStrategy():
+                detectors.append(ManualMarkerDetector(markers=strategy.markers))
+    return detectors
 
 
 async def _save_transcript(session: AsyncSession, job: Job, result: TranscriptResult) -> None:
