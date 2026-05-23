@@ -107,3 +107,47 @@ class FfmpegRunner:
             "-c:a", "pcm_s16le",
             str(output_path),
         )
+
+    async def export_vertical(
+        self, input_path: Path, output_path: Path, start: float, end: float
+    ) -> None:
+        """Export 9:16 (center crop + scale 1080x1920), re-encode (§8)."""
+        await self._export(
+            input_path,
+            output_path,
+            start,
+            end,
+            "crop='ih*9/16':ih:(iw-ih*9/16)/2:0,scale=1080:1920",
+        )
+
+    async def export_square(
+        self, input_path: Path, output_path: Path, start: float, end: float
+    ) -> None:
+        """Export 1:1 (center crop + scale 1080x1080), re-encode (§8)."""
+        await self._export(
+            input_path,
+            output_path,
+            start,
+            end,
+            "crop=ih:ih:(iw-ih)/2:0,scale=1080:1080",
+        )
+
+    async def _export(
+        self, input_path: Path, output_path: Path, start: float, end: float, vf: str
+    ) -> None:
+        await asyncio.to_thread(output_path.parent.mkdir, parents=True, exist_ok=True)
+        # -ss sebelum -i (fast seek) + -t durasi; re-encode → akurat di rentang.
+        await self._run(
+            self._ffmpeg,
+            "-y",
+            "-ss", f"{start}",
+            "-i", str(input_path),
+            "-t", f"{end - start}",
+            "-vf", vf,
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "23",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            str(output_path),
+        )
