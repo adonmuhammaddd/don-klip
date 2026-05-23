@@ -1,0 +1,32 @@
+# Env
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+npm-debug.log*
+
+# Runtime data (mounted volumes)
+/uploads/
+/outputs/
+/models/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
