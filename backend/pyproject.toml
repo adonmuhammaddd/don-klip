@@ -16,6 +16,7 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.6",
     "python-multipart>=0.0.12",
+    "yt-dlp>=2024.12.0",
 ]
 
 [project.optional-dependencies]
@@ -36,8 +37,11 @@ strict = true
 plugins = ["pydantic.mypy"]
 warn_unreachable = true
 exclude = ["^alembic/"]
-# Override `ignore_missing_imports` per-modul ditambah seiring sprint untuk
-# library tanpa type stubs (yt_dlp, librosa, dst).
+
+# Library tanpa type stubs.
+[[tool.mypy.overrides]]
+module = ["yt_dlp.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100

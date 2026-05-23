@@ -1,12 +1,12 @@
 import enum
 
 
-class SourceType(str, enum.Enum):
+class SourceType(enum.StrEnum):
     upload = "upload"
     url = "url"
 
 
-class JobStatus(str, enum.Enum):
+class JobStatus(enum.StrEnum):
     pending = "pending"
     downloading = "downloading"
     transcribing = "transcribing"
@@ -15,17 +15,17 @@ class JobStatus(str, enum.Enum):
     exporting = "exporting"
     completed = "completed"
     failed = "failed"
-    cancelled = "cancelled"  # dipakai cancellation (§9); tidak ada di tabel §3, ditambah untuk konsistensi
+    cancelled = "cancelled"  # cancellation (§9); tidak di tabel §3, ditambah untuk konsistensi
 
 
-class DetectionStrategy(str, enum.Enum):
+class DetectionStrategy(enum.StrEnum):
     audio_spike = "audio_spike"
     llm_transcript = "llm_transcript"
     twitch_chat = "twitch_chat"
     manual = "manual"
 
 
-class ClipStatus(str, enum.Enum):
+class ClipStatus(enum.StrEnum):
     pending = "pending"
     selected = "selected"
     rejected = "rejected"
