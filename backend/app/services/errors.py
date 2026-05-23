@@ -14,5 +14,9 @@ class DetectionError(PipelineError):
     """Gagal menjalankan detector."""
 
 
+class LLMError(PipelineError):
+    """Gagal memanggil LLM provider / parse output."""
+
+
 class JobCancelledError(PipelineError):
     """Job dibatalkan user di tengah pipeline (§9)."""
