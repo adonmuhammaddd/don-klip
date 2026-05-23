@@ -8,8 +8,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt
 RUN git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
 WORKDIR /opt/whisper.cpp
-RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
-    && cmake --build build --config Release -j --target whisper-cli
+# -Wno-stringop-overflow: false-positive GCC 12 di ggml-cpu/repack.cpp yang nge-fatal build.
+# GGML_NATIVE=OFF: jangan -march=native (biar binary portabel). -j4: hindari OOM saat compile.
+RUN cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DGGML_NATIVE=OFF \
+        -DGGML_FATAL_WARNINGS=OFF \
+        -DCMAKE_C_FLAGS="-Wno-stringop-overflow -Wno-array-bounds" \
+        -DCMAKE_CXX_FLAGS="-Wno-stringop-overflow -Wno-array-bounds" \
+    && cmake --build build --config Release -j4 --target whisper-cli
 
 # ─── Stage 2: runtime ────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime

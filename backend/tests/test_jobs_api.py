@@ -3,6 +3,7 @@
 Skip kalau DATABASE_URL tidak ada (butuh Postgres asli).
 """
 
+import json
 import os
 from collections.abc import Iterator
 from uuid import UUID
@@ -84,6 +85,21 @@ async def test_create_url_job_full_crud(_noop_run_job: None) -> None:
 
         gone = await client.get(f"/api/jobs/{job_id}")
         assert gone.status_code == 404
+
+
+async def test_create_upload_job_multipart(_noop_run_job: None) -> None:
+    # Regresi: form.get("file") mengembalikan starlette.UploadFile, harus lolos isinstance.
+    async with _client() as client:
+        resp = await client.post(
+            "/api/jobs",
+            files={"file": ("clip.mp4", b"\x00\x00fakevideo", "video/mp4")},
+            data={"detection_config": json.dumps(_CONFIG)},
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["source_type"] == "upload"
+        assert body["original_filename"] == "clip.mp4"
+    await _delete_job(UUID(body["id"]))
 
 
 async def test_invalid_detection_config_returns_422(_noop_run_job: None) -> None:

@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import Any, BinaryIO
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import ValidationError
 from sqlalchemy import delete, func, select
+from starlette.datastructures import UploadFile
 
 from app.api.deps import SessionDep
 from app.config import get_settings
