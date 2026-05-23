@@ -35,6 +35,7 @@ python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
 warn_unreachable = true
+exclude = ["^alembic/"]
 # Override `ignore_missing_imports` per-modul ditambah seiring sprint untuk
 # library tanpa type stubs (yt_dlp, librosa, dst).
 
