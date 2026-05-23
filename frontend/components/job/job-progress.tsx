@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipList } from "@/components/clip/clip-list";
+import { JobReview } from "@/components/job/job-review";
 import { Badge } from "@/components/ui/badge";
 import { useJob } from "@/lib/hooks/use-jobs";
 import { statusLabel, statusVariant } from "@/lib/status";
@@ -38,7 +38,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
         <p className="text-destructive text-sm">{job.error_message}</p>
       ) : null}
 
-      {job.status === "ready_for_review" ? <ClipList jobId={jobId} /> : null}
+      {job.status === "ready_for_review" ? <JobReview job={job} /> : null}
     </div>
   );
 }

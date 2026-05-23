@@ -1,10 +1,14 @@
+import asyncio
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 
 from app.api.deps import SessionDep
 from app.db.models.clip import ClipCandidate
+from app.db.models.job import Job
 from app.db.models.transcript import Transcript
 from app.schemas.clip import ClipRead, ClipUpdate
 from app.schemas.transcript import TranscriptRead
@@ -50,3 +54,20 @@ async def update_clip(clip_id: UUID, payload: ClipUpdate, session: SessionDep) -
     await session.commit()
     await session.refresh(clip)
     return ClipRead.from_model(clip)
+
+
+@router.get("/clips/{clip_id}/preview")
+async def preview_clip(clip_id: UUID, session: SessionDep) -> FileResponse:
+    """Stream source video parent job (range request) untuk player + trim (§4)."""
+    clip = await session.get(ClipCandidate, clip_id)
+    if clip is None:
+        raise HTTPException(status_code=404, detail="clip tidak ditemukan")
+    job = await session.get(Job, clip.job_id)
+    if job is None or job.source_path is None:
+        raise HTTPException(status_code=404, detail="source video belum tersedia")
+
+    path = Path(job.source_path)
+    if not await asyncio.to_thread(path.is_file):
+        raise HTTPException(status_code=404, detail="file source tidak ditemukan")
+    # FileResponse menangani Range request (206) secara otomatis.
+    return FileResponse(path)
