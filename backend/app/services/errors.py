@@ -18,5 +18,9 @@ class LLMError(PipelineError):
     """Gagal memanggil LLM provider / parse output."""
 
 
+class ChatError(PipelineError):
+    """Gagal mengambil chat replay (mis. Twitch GQL)."""
+
+
 class JobCancelledError(PipelineError):
     """Job dibatalkan user di tengah pipeline (§9)."""

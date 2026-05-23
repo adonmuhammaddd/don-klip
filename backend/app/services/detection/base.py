@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from app.db.models.enums import DetectionStrategy
+from app.services.chat.base import ChatMessage
 from app.services.transcription.base import TranscriptResult
 
 
@@ -24,15 +25,13 @@ class DetectedMoment:
 
 @dataclass
 class DetectionContext:
-    """Input bersama untuk semua detector (§5).
-
-    chat_log & manual_markers ditambahkan di Sprint 4 saat strateginya masuk.
-    """
+    """Input bersama untuk semua detector (§5)."""
 
     video_path: Path
     audio_path: Path
     duration_seconds: float
     transcript: TranscriptResult | None = None
+    chat_log: list[ChatMessage] | None = None
     config: dict[str, Any] = field(default_factory=dict)
 
 
