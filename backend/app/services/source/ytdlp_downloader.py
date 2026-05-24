@@ -26,8 +26,15 @@ class YtDlpDownloader(SourceProvider):
 
     def _download(self, url: str, out_dir: Path) -> AcquiredSource:
         out_dir.mkdir(parents=True, exist_ok=True)
+        # Prioritaskan H.264 (avc1) + AAC supaya bisa di-preview di browser (Safari
+        # tidak bisa decode AV1/Opus). Fallback bertahap kalau tidak tersedia.
         opts: dict[str, Any] = {
-            "format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+            "format": (
+                "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
+                "best[height<=1080][ext=mp4][vcodec^=avc1]/"
+                "bestvideo[height<=1080]+bestaudio/"
+                "best[height<=1080]/best"
+            ),
             "outtmpl": str(out_dir / "source.%(ext)s"),
             "merge_output_format": "mp4",
             "quiet": True,
